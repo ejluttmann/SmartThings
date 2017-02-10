@@ -45,7 +45,12 @@ preferences {
         section( "Enable notifications" ) {
             input "sendGoalMessage", "bool", title: "Enable goal score notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable game day status notifications?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "notificationSwitch", "capability.switch", title: "Use switch to enable/disable goal notifications", required: false, multiple: false, displayDuringSetup: true
         }
+
+        section("About") {
+            paragraph versionParagraph()
+        }        
     }
 
     page(name: "pageTwo", title: "Setup goal scoring notifications", nextPage: "pageThree") {
@@ -66,9 +71,10 @@ preferences {
         }
 
         section("Goal Options"){
-			input "lightColor", "enum", title: "Goal Light Color?", required: false, multiple:false, options: ["White", "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
-			input "lightLevel", "enum", title: "Goal Light Level?", required: false, options: [[10:"10%"],[20:"20%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
-            input "delayGoal", "number", title: "Delay goal notification (in seconds)", description: "1-30 seconds", required: false, range: "1..30"
+            input "lightColor", "enum", title: "Goal Light Color?", required: false, multiple:false, options: ["White", "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
+            input "lightLevel", "enum", title: "Goal Light Level?", required: false, options: [[10:"10%"],[20:"20%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
+            input "delayGoal", "number", title: "Delay goal notification (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "manualGoalTrigger", "capability.button", title: "Manual Goal Trigger", required: false, multiple: false, displayDuringSetup: true
         }
 
         section ("Speaker used to play goal scoring horn"){
@@ -93,19 +99,17 @@ preferences {
             input "hoursBeforeStart", "number", title: "Hours before game start", description: "0-12 hours", required: false, multiple: false, displayDuringSetup: true, range: "0..12"
         }
     }
-        
+
     page(name: "pageFour", title: "Name app and configure modes", install: true, uninstall: true) {
         section([mobileOnly:true]) {
             label title: "Assign a name", required: false
         }
 
         section("Debug") {
-            input "debugGoals", "bool", title: "Enable goal testing", defaultValue: "false", displayDuringSetup: true, required:false
-            input "debugGoalsFreq", "number", title: "Frequency to trigger goals for testing", description: "1-10 minutes", required: false, multiple: false, displayDuringSetup: true, range: "1..10"
             input "debugCheckDate", "date", title: "Override game day check date", description: "yyyy-mm-dd", displayDuringSetup: true, required:false
         }
     }
-        
+
 }
 
 private getTeamEnums() {
@@ -127,6 +131,8 @@ def updated() {
 }
 
 def initialize() {
+	log.info "NHL Game Notifications. Version ${version()}"
+    
     state.NHL_API_URL = "http://statsapi.web.nhl.com/api/v1"
     state.HORN_URL = "http://wejustscored.com/audio/"
 
@@ -138,32 +144,34 @@ def initialize() {
     state.GAME_STATUS_FINAL6               = '6'
     state.GAME_STATUS_FINAL7               = '7'
 
-	state.previous = [:]
-	state.capabilities = [:]
-    
-	switches.each {
-		if (it.hasCapability("Color Control")) {
-			state.capabilities[it.id] = "color"
-		}
-		else if (it.hasCapability("Switch Level")) {
-			state.capabilities[it.id] = "level"
-		}
-		else {
-			state.capabilities[it.id] = "switch"
-		}
-	}
-    
-	flashLights.each {
-		if (it.hasCapability("Color Control")) {
-			state.capabilities[it.id] = "color"
-		}
-		else if (it.hasCapability("Switch Level")) {
-			state.capabilities[it.id] = "level"
-		}
-		else {
-			state.capabilities[it.id] = "switch"
-		}
-	}
+    state.enableGameNotifications = true
+
+    state.previous = [:]
+    state.capabilities = [:]
+
+    switches.each {
+        if (it.hasCapability("Color Control")) {
+            state.capabilities[it.id] = "color"
+        }
+        else if (it.hasCapability("Switch Level")) {
+            state.capabilities[it.id] = "level"
+        }
+        else {
+            state.capabilities[it.id] = "switch"
+        }
+    }
+
+    flashLights.each {
+        if (it.hasCapability("Color Control")) {
+            state.capabilities[it.id] = "color"
+        }
+        else if (it.hasCapability("Switch Level")) {
+            state.capabilities[it.id] = "level"
+        }
+        else {
+            state.capabilities[it.id] = "switch"
+        }
+    }
 
     // schedule to run every day at 1am
     def start = timeToday("1:00AM", location.timeZone)
@@ -172,6 +180,14 @@ def initialize() {
 
     // setup schedule
     schedule(start, setupForGameDay)
+    
+    // setup subscriptions
+    subscribe(manualGoalTrigger, "button.pushed", manualGoalHandler)
+    subscribe(notificationSwitch, "switch", notificationSwitchHandler)
+
+	if (notificationSwitch && notificationSwitch.currentSwitch == "off") {
+    	state.enableGameNotifications = false
+    }
 
     // and run now to check for today
     setupForGameDay()
@@ -183,18 +199,40 @@ def setupForGameDay() {
     state.Team = null
     state.Game = null
     state.currentGameStatus = state.GAME_STATUS_UNKNOWN
-    state.gameStatus = state.GAME_STATUS_UNKNOWN
+    state.notifiedGameStatus = state.GAME_STATUS_UNKNOWN
     state.gameDate = null
     state.gameTime = null
     state.gameStations = null
     state.gameLocation = null
+    
+   	getTeam()
+}
 
-    if (settings.debugGoals) {
-    	 def goalDelay = settings.delayGoal ?: 5
-        runIn(goalDelay, teamGoalScored)
+def manualGoalHandler(evt) {
+    try {
+    	if (state.enableGameNotifications) {
+	    	teamGoalScored()
+        } else {
+        	log.debug "Game Notifications has been disabled, ignore manual goal"
+        }
+    } catch (e) {
+        log.error "something went wrong: $e"
     }
+}
 
-    getTeam()
+def notificationSwitchHandler(evt) {
+    try {
+        if (evt.value == "on") {
+        	log.debug "Re-enabling Game Notifications"
+            state.enableGameNotifications = true
+            setupForGameDay()
+        } else if (evt.value == "off") {
+        	log.debug "Disabling game notifications"
+            state.enableGameNotifications = false
+        }
+    } catch (e) {
+        log.error "something went wrong: $e"
+    }
 }
 
 def getTeamHandler(resp, data) {
@@ -342,6 +380,11 @@ def checkIfGameDayHandler(resp, data) {
 
 def checkIfGameDay() {
     try {
+        if (state.enableGameNotifications == false) {
+	        log.debug "Game Notifications has been disabled, ignore Game Day checks"
+            return
+        }
+
         def todaysDate = new Date().format('yyyy-MM-dd',location.timeZone)
         if (settings.debugCheckDate) {
             todaysDate = settings.debugCheckDate
@@ -357,10 +400,7 @@ def checkIfGameDay() {
 
 def checkGameStatusHandler(resp, data) {
 
-    // set default states
-    state.currentGameStatus = state.GAME_STATUS_UNKNOWN
-    state.Game = null
-
+    // check for valid response
     if (resp.status == 200) {
         def slurper = new groovy.json.JsonSlurper()
         def result = slurper.parseText(resp.getData())
@@ -370,6 +410,7 @@ def checkGameStatusHandler(resp, data) {
         for (date in result.dates) {
             for (game in date.games)
             {
+                // update game and status
                 state.Game = game
                 state.currentGameStatus = game.status.statusCode
                 gamveOver = false
@@ -436,7 +477,7 @@ def checkGameStatusHandler(resp, data) {
                     break
                 }
 
-                if (state.currentGameStatus != state.GAME_STATUS_UNKNOWN && state.gameStatus != state.currentGameStatus) {
+                if (state.currentGameStatus != state.GAME_STATUS_UNKNOWN && state.notifiedGameStatus != state.currentGameStatus) {
                     runIn(0, triggerStatusNotifications)
                 }
 
@@ -460,15 +501,21 @@ def checkGameStatusHandler(resp, data) {
         log.debug "Response: $resp.errorData"
 
         def now = new Date()
-        def runTime = new Date(now.getTime() + (30 * 1000))
+        def runTime = new Date(now.getTime() + (15 * 1000))
 
-        log.debug "Trying again in 30 seconds..."
+        log.debug "Trying again in 15 seconds..."
         runOnce(runTime, checkGameStatus)
     }
 }
 
 def checkGameStatus() {
     try {
+
+        if (state.enableGameNotifications == false) {
+            log.debug "Game Notifications has been disabled, ignore Game Status checks."
+            return
+        }
+        
         def todaysDate = new Date().format('yyyy-MM-dd',location.timeZone)
         if (settings.debugCheckDate) {
             todaysDate = settings.debugCheckDate
@@ -710,7 +757,7 @@ def getOpponentName(teams) {
 
 def getName(teams, opponent) {
     def name = "unknown"
-    
+
     if (state.Team.id == teams.away.team.id) {
         if (opponent) {
             return teams.home.team.name
@@ -724,15 +771,12 @@ def getName(teams, opponent) {
             return teams.home.team.name
         }
     }
-    
+
     return name
 }
 
 def teamGoalScored() {
     log.debug "GGGOOOAAALLL!!!"
-
-    setLightPrevious(settings.switches)
-    setLightPrevious(settings.flashLights)
 
     triggerTeamGoalNotifications()
 
@@ -741,13 +785,6 @@ def teamGoalScored() {
     triggerSirens()
     triggerHorn()
     triggerFlashing()
-    
-    if (settings.debugGoals) {
-    	if (settings.debugGoalsFreq) {
-	        runIn((settings.debugGoalsFreq * 60), teamGoalScored)
-        }
-    }
-    
 }
 
 def opponentGoalScored() {
@@ -758,8 +795,8 @@ def opponentGoalScored() {
 
 def triggerButtons() {
     try {
-    	if (settings.buttons) {
-	        runIn(0, triggerButtonsPush)
+        if (settings.buttons) {
+            runIn(0, triggerButtonsPush)
         }
     } catch(ex) {
         log.error "Error triggering buttons: $ex"
@@ -768,7 +805,7 @@ def triggerButtons() {
 
 def triggerButtonsPush() {
     try {
-    	if (settings.buttons) {
+        if (settings.buttons) {
             settings.buttons.eachWithIndex {b, i ->
                 b.push()
                 log.debug "Buttton=$b.id pushed"
@@ -781,8 +818,8 @@ def triggerButtonsPush() {
 
 def triggerSwitches() {
     try {
-    	if (settings.switches) {
-	        runIn(0, triggerSwitchesOn)
+        if (settings.switches) {
+            runIn(0, triggerSwitchesOn)
         }
     } catch(ex) {
         log.error "Error triggering switches: $ex"
@@ -808,13 +845,14 @@ def triggerSwitchesOn() {
 
 def triggerSwitchesOff() {
     try {
-        log.debug "turn switches off"
-        settings.switches.eachWithIndex {s, i ->
-            s.off()
-	        log.debug "Switch=$s.id off"
-        }
-        
         restoreLightOptions(settings.switches)
+        
+//        log.debug "turn switches off"
+//        settings.switches.eachWithIndex {s, i ->
+//            s.off()
+//            log.debug "Switch=$s.id off"
+//        }
+        
     } catch(ex) {
         log.error "Error turning off switches: $ex"
     }
@@ -822,8 +860,8 @@ def triggerSwitchesOff() {
 
 def triggerSirens() {
     try {
-    	if (settings.sirens) {
-	        runIn(0, triggerSirensOn)
+        if (settings.sirens) {
+            runIn(0, triggerSirensOn)
         }
     } catch(ex) {
         log.error "Error triggering sirens: $ex"
@@ -854,7 +892,7 @@ def triggerSirensOff() {
         log.debug "turn sirens off"
         settings.sirens.eachWithIndex {s, i ->
             s.off()
-	        log.debug "Siren=$s.id off"
+            log.debug "Siren=$s.id off"
         }
     } catch(ex) {
         log.error "Error turning off sirens: $ex"
@@ -863,8 +901,8 @@ def triggerSirensOff() {
 
 def triggerHorn() {
     try {
-		if (settings.sound) {
-	        runIn(0, playHorn)
+        if (settings.sound) {
+            runIn(0, playHorn)
         }
     } catch(ex) {
         log.error "Error running horn: $ex"
@@ -891,8 +929,12 @@ def playHorn() {
 }
 
 def triggerFlashing() {
-    if (settings.flashLights) {
-        runIn(0, flashingLights)
+    try {
+        if (settings.flashLights) {
+            runIn(0, flashingLights)
+        }
+    } catch(ex) {
+        log.error "Error playing horn: $ex"
     }
 }
 
@@ -941,12 +983,12 @@ def flashingLights() {
                 }
                 delay += offFor
             }
-            
+
             def restoreDelay = (delay/1000) + 1
             log.debug "restore flash devices after $restoreDelay seconds"
             runIn(restoreDelay, flashRestoreLights)
         }
-        
+
     } catch(ex) {
         log.error "Error Flashing Lights: $ex"
     }
@@ -963,22 +1005,22 @@ def flashRestoreLights() {
 
 def setLightPrevious(lights) {
     lights.each {
-		if (it.hasCapability("Color Control")) {
-        	log.debug "save light color values"
+        if (it.hasCapability("Color Control")) {
+            log.debug "save light color values"
             state.previous[it.id] = [
                 "switch": it.currentValue("switch"),
                 "level" : it.currentValue("level"),
                 "hue": it.currentValue("hue"),
                 "saturation": it.currentValue("saturation")
             ]
-		} else if (it.hasCapability("Switch Level")) {
-        	log.debug "save light level"
+        } else if (it.hasCapability("Switch Level")) {
+            log.debug "save light level"
             state.previous[it.id] = [
                 "switch": it.currentValue("switch"),
                 "level" : it.currentValue("level"),
             ]
-		} else {
-        	log.debug "save light switch"
+        } else {
+            log.debug "save light switch"
             state.previous[it.id] = [
                 "switch": it.currentValue("switch"),
             ]
@@ -989,65 +1031,76 @@ def setLightPrevious(lights) {
 def setLightOptions(lights) {
     def color = settings.lightColor
     def level = (settings.lightLevel as Integer) ?: 100
-    
+
     // default to Red
     def hueColor = 100
     def saturation = 100
 
-	if (color) {
+    if (color) {
         switch(color) {
             case "White":
-                hueColor = 52
-                saturation = 19
-                break;
+            hueColor = 52
+            saturation = 19
+            break;
             case "Blue":
-                hueColor = 70
-                break;
+            hueColor = 70
+            break;
             case "Green":
-                hueColor = 39
-                break;
+            hueColor = 39
+            break;
             case "Yellow":
-                hueColor = 25
-                break;
+            hueColor = 25
+            break;
             case "Orange":
-                hueColor = 10
-                break;
+            hueColor = 10
+            break;
             case "Purple":
-                hueColor = 75
-                break;
+            hueColor = 75
+            break;
             case "Pink":
-                hueColor = 83
-                break;
+            hueColor = 83
+            break;
             case "Red":
-                hueColor = 100
-                break;
+            hueColor = 100
+            break;
         }
-	}
+    }
 
+	setLightPrevious(lights)
+    
     lights.each {
-		if (settings.lightColor && it.hasCapability("Color Control")) {
+        if (settings.lightColor && it.hasCapability("Color Control")) {
             def newColorValue = [hue: hueColor, saturation: saturation, level: level]
             log.debug "$it.id - new light color values = $newColorValue"
             it.setColor(newColorValue)
-		} 
-        
+        } 
+
         if (settings.lightLevel && it.hasCapability("Switch Level")) {
             log.debug "$it.id - new light level = $level"
             it.setLevel(level)
-		} 
+        } 
     }
 }
 
 def restoreLightOptions(lights) {
     lights.each {
-		if (it.hasCapability("Color Control")) {
-        	log.debug "$it.id - restore light color"
-        	it.setColor(state.previous[it.id]) 
-		} 
+        if (settings.lightColor && it.hasCapability("Color Control")) {
+            log.debug "$it.id - restore light color"
+            it.setColor(state.previous[it.id]) 
+        } 
+
+        if (settings.lightLevel && it.hasCapability("Switch Level")) {
+            def level = state.previous[it.id].level ?: 100
+            log.debug "$it.id - restore light level = $level"
+            it.setLevel(level) 
+        }
         
-        if (it.hasCapability("Switch Level")) {
-        	log.debug "$it.id - restore light level"
-        	it.setLevel(state.previous[it.id]) 
+        def lightSwitch = state.previous[it.id].switch ?: "off"
+        log.debug "$it.id - turn light $lightSwitch"
+        if (lightSwitch == "on") {
+        	it.on()
+        } else {
+        	it.off()
         }
     }
 }
@@ -1146,24 +1199,20 @@ def triggerStatusNotifications() {
 
             if (msg) {
                 if (triggerNotifications(msg)) {
-                    state.gameStatus = state.currentGameStatus
-
                     if (msg2) {
                         triggerNotifications(msg2)
                     }
                 }
-            } else {
-                // just set game status, no message to send
-                state.gameStatus = state.currentGameStatus
             }
         } else {
             log.debug( "invalid game object")
         }
     }
     else {
-        // just set game status, no messages
-        state.gameStatus = state.currentGameStatus    	    	
     }
+
+    //  set game status notified
+    state.notifiedGameStatus = state.currentGameStatus    	    	
 }
 
 def triggerNotifications(msg) {
@@ -1183,11 +1232,19 @@ def triggerNotifications(msg) {
                 sendSms( sendPhoneMessage, msg )
             }
 
-            return true
         }
     } catch(ex) {
         log.error "Error sending notifications: $ex"
+        return false
     }
 
-    return false
+    return true
+}
+
+private def versionParagraph() {
+    def text = "NHL Game Notifications\nVersion ${version()}"
+}
+
+private def version() {
+    return "0.9.0"
 }
