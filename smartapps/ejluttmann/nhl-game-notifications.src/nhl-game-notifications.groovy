@@ -37,15 +37,29 @@ definition(
 
 
 preferences {
-    page(name: "pageOne", title: "Select team and notifications", nextPage: "pageTwo", uninstall: true) {
-        section("Select NHL Team") {
-            input "nhlTeam", "enum", title: "NHL Team", required: true, displayDuringSetup: true, options: getTeamEnums()
-        }
 
-        section( "Enable notifications" ) {
-            input "sendGoalMessage", "bool", title: "Enable goal score notifications?", defaultValue: "true", displayDuringSetup: true, required:false
-            input "sendGameDayMessage", "bool", title: "Enable game day status notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "notificationSwitch", "capability.switch", title: "Use switch to enable/disable goal notifications", required: false, multiple: false, displayDuringSetup: true
+    page(name: "startPage", title: "NHL Game Notifications", install: true, uninstall: true) {
+        section() {
+            input "nhlTeam", "enum", title: "Select NHL Team", required: true, displayDuringSetup: true, options: getTeamEnums()
+            
+            href(name: "goals",
+                 title:"Goal Scoring", description:"Tap to setup goal scoring",
+                 required: false,
+                 page: "goalsPage")
+            
+            href(name: "notify",
+                 title:"Game Notifications", description:"Tap to setup game notifications",
+                 required: false,
+                 page: "notifyPage")
+            
+//            href(name: "debug",
+//                 title:"Debug", description:"Tap to setup debugging options",
+//                 required: false,
+//                 page: "debugPage")
+        }
+        
+        section([mobileOnly:true]) {
+            label title: "Assign a name", required: false
         }
 
         section("About") {
@@ -53,14 +67,16 @@ preferences {
         }        
     }
 
-    page(name: "pageTwo", title: "Setup goal scoring notifications", nextPage: "pageThree") {
+    page(name: "goalsPage") {
         section("Momentary Buttons (ie. Doorbell, Alarm)"){
             input "buttons", "capability.momentary", title: "Devices Selection", required: false, multiple: true, displayDuringSetup: true
+            input "buttonDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
 
-        section("Turn On/Off Lights"){
+        section("Turn On/Off Switches"){
             input "switches", "capability.switch", title: "Select Lights", required: false, multiple: true, displayDuringSetup: true
             input "switchOnFor", "number", title: "Turn Off After", description: "1-120 seconds", required: false, multiple: false, displayDuringSetup: true, range: "1..120"
+            input "switchDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
 
         section("Flashing Lights"){
@@ -68,29 +84,36 @@ preferences {
             input "numFlashes", "number", title: "Number of times to flash", description: "1-50 times", required: false, range: "1..50"
             input "flashOnFor", "number", title: "On for (default 1000ms)", description: "milliseconds", required: false
             input "flashOffFor", "number", title: "Off for (default 1000ms)", description: "milliseconds", required: false
-        }
-
-        section("Goal Options"){
-            input "lightColor", "enum", title: "Goal Light Color?", required: false, multiple:false, options: ["White", "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
-            input "lightLevel", "enum", title: "Goal Light Level?", required: false, options: [[10:"10%"],[20:"20%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
-            input "delayGoal", "number", title: "Delay goal notification (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
-            input "manualGoalTrigger", "capability.button", title: "Manual Goal Trigger", required: false, multiple: false, displayDuringSetup: true
-        }
-
-        section ("Speaker used to play goal scoring horn"){
-            input "sound", "capability.musicPlayer", title: "Speaker Selection", required: false, displayDuringSetup: true
-            input "volume", "number", title: "Speaker volume", description: "1-100%", required: false, range: "1..100"
+            input "flashDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "lightColor", "enum", title: "Flashing Light Color?", required: false, multiple:false, options: ["White", "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
+            input "lightLevel", "enum", title: "Flashing Light Level?", required: false, options: [[10:"10%"],[20:"20%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
         }
 
         section("Sirens to trigger"){
             input "sirens", "capability.alarm", title: "Sirens Selection", required: false, multiple: true
             input "sirensOnly", "bool", title: "Don't use the strobe", defaultValue: "false", displayDuringSetup: true, required:false
             input "sirensOnFor", "number", title: "Turn Off After", description: "1-10 seconds", required: false, multiple: false, displayDuringSetup: true, range: "1..10"
+            input "sirenDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+        }
+
+        section ("Speaker used to play goal scoring horn"){
+            input "sound", "capability.musicPlayer", title: "Speaker Selection", required: false, displayDuringSetup: true
+            input "volume", "number", title: "Speaker volume", description: "1-100%", required: false, range: "1..100"
+            input "soundDuration", "number", title: "Duration to play (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "soundDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
     }
 
-    page(name: "pageThree", title: "Setup game day status notifications", nextPage: "pageFour") {
-        section( "Enable notification types" ) {
+    page(name: "notifyPage") {
+        section( "Enable notifications" ) {
+            input "sendGoalMessage", "bool", title: "Enable goal score notifications?", defaultValue: "true", displayDuringSetup: true, required:false
+            input "sendGameDayMessage", "bool", title: "Enable game day status notifications?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "notificationSwitch", "capability.switch", title: "Use switch to enable/disable goal notifications", required: false, multiple: false, displayDuringSetup: true
+            input "manualGoalTrigger", "capability.button", title: "Manual Goal Trigger", required: false, multiple: false, displayDuringSetup: true
+            input "goalDelay", "number", title: "Notification delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+        }
+        
+        section( "Push and Text Notifications" ) {
             input "sendPushMessage", "bool", title: "Send push notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPhoneMessage", "phone", title: "Send phone texts?", description: "phone number", required: false
         }
@@ -100,16 +123,11 @@ preferences {
         }
     }
 
-    page(name: "pageFour", title: "Name app and configure modes", install: true, uninstall: true) {
-        section([mobileOnly:true]) {
-            label title: "Assign a name", required: false
-        }
-
+    page(name: "debugPage", title: "Name app and configure modes", install: true, uninstall: true) {
         section("Debug") {
             input "debugCheckDate", "date", title: "Override game day check date", description: "yyyy-mm-dd", displayDuringSetup: true, required:false
         }
     }
-
 }
 
 private getTeamEnums() {
@@ -448,13 +466,13 @@ def checkGameStatusHandler(resp, data) {
                         state.opponentScore = 0
                     }
 
-                    def goalDelay = settings.delayGoal ?: 0
+                    def delay = settings.goalDelay ?: 0
                     if (teamScore > state.teamScore) {
                         state.teamScore = teamScore
-                        runIn(goalDelay, teamGoalScored)
+                        runIn(delay, teamGoalScored)
                     } else if (opponentScore > state.opponentScore) {
                         state.opponentScore = opponentScore
-                        runIn(goalDelay, opponentGoalScored)
+                        runIn(delay, opponentGoalScored)
                     } else {
                         log.debug "No change in scores"
                     }
@@ -795,8 +813,9 @@ def opponentGoalScored() {
 
 def triggerButtons() {
     try {
+        def delay = settings.buttonDelay ?: 0
         if (settings.buttons) {
-            runIn(0, triggerButtonsPush)
+            runIn(delay, triggerButtonsPush)
         }
     } catch(ex) {
         log.error "Error triggering buttons: $ex"
@@ -818,8 +837,9 @@ def triggerButtonsPush() {
 
 def triggerSwitches() {
     try {
+        def delay = settings.switchDelay ?: 0
         if (settings.switches) {
-            runIn(0, triggerSwitchesOn)
+            runIn(delay, triggerSwitchesOn)
         }
     } catch(ex) {
         log.error "Error triggering switches: $ex"
@@ -829,9 +849,7 @@ def triggerSwitches() {
 def triggerSwitchesOn() {
     try {
         def switchOffSecs = settings.switchOnFor ?: 5
-
-        setLightOptions(settings.switches)
-
+        
         settings.switches.eachWithIndex {s, i ->
             s.on()
             log.debug "Switch=$s.id on"
@@ -844,14 +862,12 @@ def triggerSwitchesOn() {
 }
 
 def triggerSwitchesOff() {
-    try {
-        restoreLightOptions(settings.switches)
-        
-//        log.debug "turn switches off"
-//        settings.switches.eachWithIndex {s, i ->
-//            s.off()
-//            log.debug "Switch=$s.id off"
-//        }
+    try {        
+        log.debug "turn switches off"
+        settings.switches.eachWithIndex {s, i ->
+            s.off()
+            log.debug "Switch=$s.id off"
+        }
         
     } catch(ex) {
         log.error "Error turning off switches: $ex"
@@ -860,8 +876,9 @@ def triggerSwitchesOff() {
 
 def triggerSirens() {
     try {
+        def delay = settings.sirenDelay ?: 0
         if (settings.sirens) {
-            runIn(0, triggerSirensOn)
+            runIn(delay, triggerSirensOn)
         }
     } catch(ex) {
         log.error "Error triggering sirens: $ex"
@@ -901,8 +918,9 @@ def triggerSirensOff() {
 
 def triggerHorn() {
     try {
+        def delay = settings.soundDelay ?: 0
         if (settings.sound) {
-            runIn(0, playHorn)
+            runIn(delay, playHorn)
         }
     } catch(ex) {
         log.error "Error running horn: $ex"
@@ -915,10 +933,18 @@ def playHorn() {
 
         log.debug "play horn"
         if (hornURI) {
-            if (settings.volume) {
-                settings.sound.playTrackAtVolume(hornURI, settings.volume)
+            if (settings.soundDuration) {
+                if (settings.volume) {
+                    settings.sound.playTrackAndResume(hornURI, settings.soundDuration, settings.volume)
+                } else {
+                    settings.sound.playTrackAndResume(hornURI, settings.soundDuration)
+                }
             } else {
-                settings.sound.playTrack(hornURI)
+                if (settings.volume) {
+                    settings.sound.playTrackAtVolume(hornURI, settings.volume)
+                } else {
+                    settings.sound.playTrack(hornURI)
+                }
             }
         } else {
             log.debug "Error, could not get horn URI"
@@ -930,8 +956,9 @@ def playHorn() {
 
 def triggerFlashing() {
     try {
+        def delay = settings.flashingDelay ?: 0
         if (settings.flashLights) {
-            runIn(0, flashingLights)
+            runIn(delay, flashingLights)
         }
     } catch(ex) {
         log.error "Error playing horn: $ex"
@@ -1246,5 +1273,5 @@ private def versionParagraph() {
 }
 
 private def version() {
-    return "0.9.0"
+    return "0.9.1"
 }
