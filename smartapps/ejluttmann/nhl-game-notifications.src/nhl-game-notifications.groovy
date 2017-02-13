@@ -41,23 +41,28 @@ preferences {
     page(name: "startPage", title: "NHL Game Notifications", install: true, uninstall: true) {
         section() {
             input "nhlTeam", "enum", title: "Select NHL Team", required: true, displayDuringSetup: true, options: getTeamEnums()
-            
+
             href(name: "goals",
                  title:"Goal Scoring", description:"Tap to setup goal scoring",
                  required: false,
                  page: "goalsPage")
-            
+
             href(name: "notify",
                  title:"Game Notifications", description:"Tap to setup game notifications",
                  required: false,
                  page: "notifyPage")
-            
-//            href(name: "debug",
-//                 title:"Debug", description:"Tap to setup debugging options",
-//                 required: false,
-//                 page: "debugPage")
+
+            href(name: "game",
+                 title:"Game Actions", description:"Tap to setup game state actions",
+                 required: false,
+                 page: "gamePage")
+
+            //            href(name: "debug",
+            //                 title:"Debug", description:"Tap to setup debugging options",
+            //                 required: false,
+            //                 page: "debugPage")
         }
-        
+
         section([mobileOnly:true]) {
             label title: "Assign a name", required: false
         }
@@ -69,57 +74,64 @@ preferences {
 
     page(name: "goalsPage") {
         section("Momentary Buttons (ie. Doorbell, Alarm)"){
-            input "buttons", "capability.momentary", title: "Devices Selection", required: false, multiple: true, displayDuringSetup: true
+            input "buttonGoals", "capability.momentary", title: "Devices Selection", required: false, multiple: true, displayDuringSetup: true
             input "buttonDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
 
-        section("Turn On/Off Switches"){
-            input "switches", "capability.switch", title: "Select Lights", required: false, multiple: true, displayDuringSetup: true
+        section("Turn On/Off Lights"){
+            input "switchLights", "capability.switch", title: "Select Lights", required: false, multiple: true, displayDuringSetup: true
             input "switchOnFor", "number", title: "Turn Off After", description: "1-120 seconds", required: false, multiple: false, displayDuringSetup: true, range: "1..120"
             input "switchDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
 
         section("Flashing Lights"){
             input "flashLights", "capability.switch", title: "Select Lights", multiple: true, required: false
-            input "numFlashes", "number", title: "Number of times to flash", description: "1-50 times", required: false, range: "1..50"
-            input "flashOnFor", "number", title: "On for (default 1000ms)", description: "milliseconds", required: false
-            input "flashOffFor", "number", title: "Off for (default 1000ms)", description: "milliseconds", required: false
-            input "flashDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "numFlashes", "number", title: "Number Of Times To Flash", description: "1-50 times", required: false, range: "1..50"
+            input "flashOnFor", "number", title: "On For (default 1000ms)", description: "milliseconds", required: false
+            input "flashOffFor", "number", title: "Off For (default 1000ms)", description: "milliseconds", required: false
+            input "flashDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
             input "lightColor", "enum", title: "Flashing Light Color?", required: false, multiple:false, options: ["White", "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
             input "lightLevel", "enum", title: "Flashing Light Level?", required: false, options: [[10:"10%"],[20:"20%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
         }
 
-        section("Sirens to trigger"){
+        section("Sirens To Trigger"){
             input "sirens", "capability.alarm", title: "Sirens Selection", required: false, multiple: true
-            input "sirensOnly", "bool", title: "Don't use the strobe", defaultValue: "false", displayDuringSetup: true, required:false
+            input "sirensOnly", "bool", title: "Don't Use The Strobe", defaultValue: "false", displayDuringSetup: true, required:false
             input "sirensOnFor", "number", title: "Turn Off After", description: "1-10 seconds", required: false, multiple: false, displayDuringSetup: true, range: "1..10"
-            input "sirenDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "sirenDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
 
-        section ("Speaker used to play goal scoring horn"){
+        section ("Speaker Used To Play Goal Scoring Horn"){
             input "sound", "capability.musicPlayer", title: "Speaker Selection", required: false, displayDuringSetup: true
-            input "volume", "number", title: "Speaker volume", description: "1-100%", required: false, range: "1..100"
-            input "soundDuration", "number", title: "Duration to play (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
-            input "soundDelay", "number", title: "Delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "volume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
+            input "soundDuration", "number", title: "Duration To Play (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+            input "soundDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
     }
 
     page(name: "notifyPage") {
-        section( "Enable notifications" ) {
-            input "sendGoalMessage", "bool", title: "Enable goal score notifications?", defaultValue: "true", displayDuringSetup: true, required:false
-            input "sendGameDayMessage", "bool", title: "Enable game day status notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "notificationSwitch", "capability.switch", title: "Use switch to enable/disable goal notifications", required: false, multiple: false, displayDuringSetup: true
+        section( "Enable Notifications" ) {
+            input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
+            input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "notificationSwitch", "capability.switch", title: "Use Switch To Enable/Disable Goal Notifications", required: false, multiple: false, displayDuringSetup: true
             input "manualGoalTrigger", "capability.button", title: "Manual Goal Trigger", required: false, multiple: false, displayDuringSetup: true
-            input "goalDelay", "number", title: "Notification delay after goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
-        }
-        
-        section( "Push and Text Notifications" ) {
-            input "sendPushMessage", "bool", title: "Send push notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "sendPhoneMessage", "phone", title: "Send phone texts?", description: "phone number", required: false
+            input "goalDelay", "number", title: "Notification Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
 
-        section( "Number of hours prior to game before sending status notifications" ) {
-            input "hoursBeforeStart", "number", title: "Hours before game start", description: "0-12 hours", required: false, multiple: false, displayDuringSetup: true, range: "0..12"
+        section( "Push And Text Notifications" ) {
+            input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "sendPhoneMessage", "phone", title: "Send Phone Texts?", description: "phone number", required: false
+        }
+
+        section( "Number Of Hours Prior To Game Before Sending Status Notifications" ) {
+            input "hoursBeforeStart", "number", title: "Hours Before Game Start", description: "0-12 hours", required: false, multiple: false, displayDuringSetup: true, range: "0..12"
+        }
+    }
+
+    page(name: "gamePage") {
+        section("Turn On At Start Of Game"){
+            input "gameSwitches", "capability.switch", title: "Select Switches", required: false, multiple: true, displayDuringSetup: true
+            input "gameSwitchOff", "bool", title: "Turn Off After Game?", defaultValue: "true", displayDuringSetup: true, required:false
         }
     }
 
@@ -149,8 +161,8 @@ def updated() {
 }
 
 def initialize() {
-	log.info "NHL Game Notifications. Version ${version()}"
-    
+    log.info "NHL Game Notifications. Version ${version()}"
+
     state.NHL_API_URL = "http://statsapi.web.nhl.com/api/v1"
     state.HORN_URL = "http://wejustscored.com/audio/"
 
@@ -167,7 +179,7 @@ def initialize() {
     state.previous = [:]
     state.capabilities = [:]
 
-    switches.each {
+    switchLights.each {
         if (it.hasCapability("Color Control")) {
             state.capabilities[it.id] = "color"
         }
@@ -198,13 +210,13 @@ def initialize() {
 
     // setup schedule
     schedule(start, setupForGameDay)
-    
+
     // setup subscriptions
     subscribe(manualGoalTrigger, "button.pushed", manualGoalHandler)
     subscribe(notificationSwitch, "switch", notificationSwitchHandler)
 
-	if (notificationSwitch && notificationSwitch.currentSwitch == "off") {
-    	state.enableGameNotifications = false
+    if (notificationSwitch && notificationSwitch.currentSwitch == "off") {
+        state.enableGameNotifications = false
     }
 
     // and run now to check for today
@@ -222,16 +234,17 @@ def setupForGameDay() {
     state.gameTime = null
     state.gameStations = null
     state.gameLocation = null
-    
-   	getTeam()
+    state.gameStarted = false
+
+    getTeam()
 }
 
 def manualGoalHandler(evt) {
     try {
-    	if (state.enableGameNotifications) {
-	    	teamGoalScored()
+        if (state.enableGameNotifications) {
+            teamGoalScored()
         } else {
-        	log.debug "Game Notifications has been disabled, ignore manual goal"
+            log.debug "Game Notifications has been disabled, ignore manual goal"
         }
     } catch (e) {
         log.error "something went wrong: $e"
@@ -241,11 +254,11 @@ def manualGoalHandler(evt) {
 def notificationSwitchHandler(evt) {
     try {
         if (evt.value == "on") {
-        	log.debug "Re-enabling Game Notifications"
+            log.debug "Re-enabling Game Notifications"
             state.enableGameNotifications = true
             setupForGameDay()
         } else if (evt.value == "off") {
-        	log.debug "Disabling game notifications"
+            log.debug "Disabling game notifications"
             state.enableGameNotifications = false
         }
     } catch (e) {
@@ -399,7 +412,7 @@ def checkIfGameDayHandler(resp, data) {
 def checkIfGameDay() {
     try {
         if (state.enableGameNotifications == false) {
-	        log.debug "Game Notifications has been disabled, ignore Game Day checks"
+            log.debug "Game Notifications has been disabled, ignore Game Day checks"
             return
         }
 
@@ -440,6 +453,8 @@ def checkGameStatusHandler(resp, data) {
 
                     // delay for 2 minutes before checking game day status again
                     runDelay = (2 * 60)
+
+                    //done
                     break
 
                     case state.GAME_STATUS_PREGAME:
@@ -447,6 +462,8 @@ def checkGameStatusHandler(resp, data) {
 
                     // start checking every 30 seconds now that it is pregame status
                     runDelay = 30
+
+                    //done                    
                     break
 
                     case state.GAME_STATUS_IN_PROGRESS:
@@ -459,31 +476,43 @@ def checkGameStatusHandler(resp, data) {
                     // check every 5 seconds when game is active, looking for score changes asap
                     runDelay = 5
 
-                    // reset left over old score values
-                    if (state.teamScore > teamScore || state.opponentScore > opponentScore) {
-                        log.debug "Reset scores"
-                        state.teamScore = 0
-                        state.opponentScore = 0
+                    // first time just initialize the scores - this is preventing the issue of sending 
+                    // goal notifications when app is started in the middle of the game after scores have 
+                    // occurred.
+                    if (state.gameStarted == false) {
+                        log.debug "Game started, initialize scores..."
+                        state.teamScore = teamScore
+                        state.opponentScore = opponentScore
                     }
+                    
+                    // indicate game has started
+                    state.gameStarted = true
 
+                    // check for change in scores
                     def delay = settings.goalDelay ?: 0
                     if (teamScore > state.teamScore) {
+                        log.debug "Change in team score"
                         state.teamScore = teamScore
                         runIn(delay, teamGoalScored)
-                    } else if (opponentScore > state.opponentScore) {
+                    } 
+                    if (opponentScore > state.opponentScore) {
+                        log.debug "Change in opponent score"
                         state.opponentScore = opponentScore
                         runIn(delay, opponentGoalScored)
-                    } else {
-                        log.debug "No change in scores"
-                    }
+                    } 
+
+                    //done
                     break
 
                     case state.GAME_STATUS_FINAL6:
                     case state.GAME_STATUS_FINAL7:
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is over!"
 
-                    // game over, no more game day status checkds required for the day
+                    // game over, no more game day status checks required for the day
                     gamveOver = true
+                    state.gameStarted = false
+                    
+                    //done
                     break
 
                     case state.GAME_STATUS_UNKNOWN:
@@ -492,6 +521,8 @@ def checkGameStatusHandler(resp, data) {
 
                     // check again in 15 seconds if game day status is unknown
                     runDelay = 15
+
+                    //done
                     break
                 }
 
@@ -533,7 +564,7 @@ def checkGameStatus() {
             log.debug "Game Notifications has been disabled, ignore Game Status checks."
             return
         }
-        
+
         def todaysDate = new Date().format('yyyy-MM-dd',location.timeZone)
         if (settings.debugCheckDate) {
             todaysDate = settings.debugCheckDate
@@ -811,10 +842,22 @@ def opponentGoalScored() {
     triggerTeamOpponentNotifications()
 }
 
+def setSwitches(switches, on) {
+    switches.eachWithIndex {s, i ->
+    	if (on) {
+            s.on()
+            log.debug "Switch=$s.id on"
+        } else {
+            s.off()
+            log.debug "Switch=$s.id off"
+        }
+    }
+}
+
 def triggerButtons() {
     try {
         def delay = settings.buttonDelay ?: 0
-        if (settings.buttons) {
+        if (settings.buttonGoals) {
             runIn(delay, triggerButtonsPush)
         }
     } catch(ex) {
@@ -824,8 +867,8 @@ def triggerButtons() {
 
 def triggerButtonsPush() {
     try {
-        if (settings.buttons) {
-            settings.buttons.eachWithIndex {b, i ->
+        if (settings.buttonGoals) {
+            settings.buttonGoals.eachWithIndex {b, i ->
                 b.push()
                 log.debug "Buttton=$b.id pushed"
             }
@@ -838,7 +881,7 @@ def triggerButtonsPush() {
 def triggerSwitches() {
     try {
         def delay = settings.switchDelay ?: 0
-        if (settings.switches) {
+        if (settings.switchLights) {
             runIn(delay, triggerSwitchesOn)
         }
     } catch(ex) {
@@ -849,11 +892,8 @@ def triggerSwitches() {
 def triggerSwitchesOn() {
     try {
         def switchOffSecs = settings.switchOnFor ?: 5
-        
-        settings.switches.eachWithIndex {s, i ->
-            s.on()
-            log.debug "Switch=$s.id on"
-        }
+
+		setSwitches(settings.switchLights, true)
 
         runIn(switchOffSecs, triggerSwitchesOff)
     } catch(ex) {
@@ -864,11 +904,8 @@ def triggerSwitchesOn() {
 def triggerSwitchesOff() {
     try {        
         log.debug "turn switches off"
-        settings.switches.eachWithIndex {s, i ->
-            s.off()
-            log.debug "Switch=$s.id off"
-        }
         
+		setSwitches(settings.switchLights, false)
     } catch(ex) {
         log.error "Error turning off switches: $ex"
     }
@@ -1093,8 +1130,8 @@ def setLightOptions(lights) {
         }
     }
 
-	setLightPrevious(lights)
-    
+    setLightPrevious(lights)
+
     lights.each {
         if (settings.lightColor && it.hasCapability("Color Control")) {
             def newColorValue = [hue: hueColor, saturation: saturation, level: level]
@@ -1121,13 +1158,13 @@ def restoreLightOptions(lights) {
             log.debug "$it.id - restore light level = $level"
             it.setLevel(level) 
         }
-        
+
         def lightSwitch = state.previous[it.id].switch ?: "off"
         log.debug "$it.id - turn light $lightSwitch"
         if (lightSwitch == "on") {
-        	it.on()
+            it.on()
         } else {
-        	it.off()
+            it.off()
         }
     }
 }
@@ -1200,6 +1237,10 @@ def triggerStatusNotifications() {
 
                 case state.GAME_STATUS_IN_PROGRESS:
                 msg = "${game.teams.away.team.name} vs ${game.teams.home.team.name} is now in progress!"
+                // game start
+                if (settings.gameSwitches) {
+                	setSwitches(settings.gameSwitches, true)
+                }
                 break
 
                 case state.GAME_STATUS_IN_PROGRESS_CRITICAL:
@@ -1216,6 +1257,12 @@ def triggerStatusNotifications() {
                     msg2 =  getTeamName(game.teams) + " lost."
                 } else {
                     msg2 = "Tie game!"
+                }
+                
+                if (settings.gameSwitches) {
+                	if (settings.gameSwitchOff) {
+	                	setSwitches(settings.gameSwitches, false)
+                	}
                 }
                 break
 
@@ -1273,5 +1320,5 @@ private def versionParagraph() {
 }
 
 private def version() {
-    return "0.9.1"
+    return "0.9.2"
 }
