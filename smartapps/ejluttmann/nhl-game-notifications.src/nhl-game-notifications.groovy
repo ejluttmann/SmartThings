@@ -470,36 +470,11 @@ def checkGameStatusHandler(resp, data) {
                     case state.GAME_STATUS_IN_PROGRESS_CRITICAL:
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is on!!!"
 
-                    def teamScore = getTeamScore(game.teams)
-                    def opponentScore = getOpponentScore(game.teams)
-
                     // check every 5 seconds when game is active, looking for score changes asap
                     runDelay = 5
-
-                    // first time just initialize the scores - this is preventing the issue of sending 
-                    // goal notifications when app is started in the middle of the game after scores have 
-                    // occurred.
-                    if (state.gameStarted == false) {
-                        log.debug "Game started, initialize scores..."
-                        state.teamScore = teamScore
-                        state.opponentScore = opponentScore
-                    }
                     
-                    // indicate game has started
-                    state.gameStarted = true
-
-                    // check for change in scores
-                    def delay = settings.goalDelay ?: 0
-                    if (teamScore > state.teamScore) {
-                        log.debug "Change in team score"
-                        state.teamScore = teamScore
-                        runIn(delay, teamGoalScored)
-                    } 
-                    if (opponentScore > state.opponentScore) {
-                        log.debug "Change in opponent score"
-                        state.opponentScore = opponentScore
-                        runIn(delay, opponentGoalScored)
-                    } 
+                    // check for new goal
+                    checkForGoal()
 
                     //done
                     break
@@ -507,6 +482,9 @@ def checkGameStatusHandler(resp, data) {
                     case state.GAME_STATUS_FINAL6:
                     case state.GAME_STATUS_FINAL7:
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is over!"
+                    
+                    // check for overtime score
+                    checkForGoal()
 
                     // game over, no more game day status checks required for the day
                     gamveOver = true
@@ -576,6 +554,37 @@ def checkGameStatus() {
     } catch (e) {
         log.error "something went wrong: $e"
     }
+}
+
+def checkForGoal() {
+
+    def teamScore = getTeamScore(game.teams)
+    def opponentScore = getOpponentScore(game.teams)
+
+    // first time just initialize the scores - this is preventing the issue of sending 
+    // goal notifications when app is started in the middle of the game after scores have 
+    // occurred.
+    if (state.gameStarted == false) {
+        log.debug "Game started, initialize scores..."
+        state.teamScore = teamScore
+        state.opponentScore = opponentScore
+    }
+
+    // indicate game has started
+    state.gameStarted = true
+
+    // check for change in scores
+    def delay = settings.goalDelay ?: 0
+    if (teamScore > state.teamScore) {
+        log.debug "Change in team score"
+        state.teamScore = teamScore
+        runIn(delay, teamGoalScored)
+    } 
+    if (opponentScore > state.opponentScore) {
+        log.debug "Change in opponent score"
+        state.opponentScore = opponentScore
+        runIn(delay, opponentGoalScored)
+    } 
 }
 
 def getHornURL(team) {
@@ -1320,5 +1329,5 @@ private def versionParagraph() {
 }
 
 private def version() {
-    return "0.9.2"
+    return "0.9.3"
 }
