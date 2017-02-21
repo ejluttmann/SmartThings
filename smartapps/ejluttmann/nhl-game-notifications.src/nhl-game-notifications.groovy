@@ -558,33 +558,38 @@ def checkGameStatus() {
 
 def checkForGoal() {
 
-    def teamScore = getTeamScore(game.teams)
-    def opponentScore = getOpponentScore(game.teams)
+    def game = state.Game
+    if (game) {
+        def teamScore = getTeamScore(game.teams)
+        def opponentScore = getOpponentScore(game.teams)
 
-    // first time just initialize the scores - this is preventing the issue of sending 
-    // goal notifications when app is started in the middle of the game after scores have 
-    // occurred.
-    if (state.gameStarted == false) {
-        log.debug "Game started, initialize scores..."
-        state.teamScore = teamScore
-        state.opponentScore = opponentScore
+        // first time just initialize the scores - this is preventing the issue of sending 
+        // goal notifications when app is started in the middle of the game after scores have 
+        // occurred.
+        if (state.gameStarted == false) {
+            log.debug "Game started, initialize scores..."
+            state.teamScore = teamScore
+            state.opponentScore = opponentScore
+        }
+
+        // indicate game has started
+        state.gameStarted = true
+
+        // check for change in scores
+        def delay = settings.goalDelay ?: 0
+        if (teamScore > state.teamScore) {
+            log.debug "Change in team score"
+            state.teamScore = teamScore
+            runIn(delay, teamGoalScored)
+        } 
+        if (opponentScore > state.opponentScore) {
+            log.debug "Change in opponent score"
+            state.opponentScore = opponentScore
+            runIn(delay, opponentGoalScored)
+        } 
+    } else {
+    	log.debug "No game setup!"
     }
-
-    // indicate game has started
-    state.gameStarted = true
-
-    // check for change in scores
-    def delay = settings.goalDelay ?: 0
-    if (teamScore > state.teamScore) {
-        log.debug "Change in team score"
-        state.teamScore = teamScore
-        runIn(delay, teamGoalScored)
-    } 
-    if (opponentScore > state.opponentScore) {
-        log.debug "Change in opponent score"
-        state.opponentScore = opponentScore
-        runIn(delay, opponentGoalScored)
-    } 
 }
 
 def getHornURL(team) {
