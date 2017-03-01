@@ -1192,7 +1192,7 @@ def triggerTeamGoalNotifications() {
             def goals = getTeamScore(game.teams)
 
             if (goals == 1) {
-                msg = getTeamName(game.teams) + " scored thier first goal!"
+                msg = getTeamName(game.teams) + " scored their first goal!"
             } else {
                 msg = getTeamName(game.teams) + " have scored ${goals} goals!"
             }
