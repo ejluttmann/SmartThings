@@ -27,9 +27,10 @@ Handles the sport services for NHL notifications.
 
 #### Update the code using the SmartThings IDE
 
-1. Within the SmartThings IDE and click '*My SmartApps*' (or goto https://graph.api.smartthings.com/ide/apps), then select '*sport-notifications/nhl : NHL Notification Service*'. 
-2. Delete to old code and paste in the contents of the updated groovy file from the link below.
-3. Click '*Save*', and then '*Publish*' *(For Me)*.
+1. Install *Sport Notification Switch*, see https://github.com/ejluttmann/SmartThings/tree/master/devicetypes/sport-notifications/sport-notification-switch.src
+2. Within the SmartThings IDE and click '*My SmartApps*' (or goto https://graph.api.smartthings.com/ide/apps), then select '*sport-notifications/nhl : NHL Notification Service*'. 
+3. Delete to old code and paste in the contents of the updated groovy file from the link below.
+4. Click '*Save*', and then '*Publish*' *(For Me)*.
 
 https://raw.githubusercontent.com/ejluttmann/SmartThings/master/smartapps/sport-notifications/nhl/nhl-notification-service.src/nhl-notification-service.groovy
 
