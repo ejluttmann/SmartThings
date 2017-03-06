@@ -3,13 +3,13 @@ NHL Game Notifications controls lights, buttons, switches, sirens, and/or play y
 
 #### Install the code using the SmartThings IDE
 
-1. Within the SmartThings IDE, click '*My SmartApps*', then select '*NHL Game Notifications*'. 
+1. Within the SmartThings IDE and click '*My SmartApps*' (or goto https://graph.api.smartthings.com/ide/devices), then '*+ New SmartApp*'. 
 2. Select the '*From Code*' tab and paste in the contents of the groovy file from the link below.
 3. Click '*Create*', and then '*Publish*' *(For Me)*.
 
 #### Update the code using the SmartThings IDE
 
-1. Within the SmartThings IDE, click '*My SmartApps*', then '*+ New SmartApp*'. 
+1. Within the SmartThings IDE and click '*My SmartApps*' (or goto https://graph.api.smartthings.com/ide/devices), then select '*NHL Game Notifications*'. 
 2. Delete to old code and paste in the contents of the updated groovy file from the link below.
 3. Click '*Save*', and then '*Publish*' *(For Me)*.
 
