@@ -21,10 +21,11 @@ Handles the sport services for NHL notifications.
 
 #### Install the code using the SmartThings IDE
 
-1. Install *Sport Notification Switch*, see https://github.com/ejluttmann/SmartThings/tree/master/devicetypes/sport-notifications/sport-notification-switch.src
-2. Within the SmartThings IDE and click '*My SmartApps*' (or goto https://graph.api.smartthings.com/ide/apps), then '*+ New SmartApp*'. 
-3. Select the '*From Code*' tab and paste in the contents of the groovy file from the link below.
-4. Click '*Create*', and then '*Publish*' *(For Me)*.
+NOTE:  First you should install the *Sport Notification Switch*, a devicetype handler for a virtual switch used by the child service apps.  Installation instructions for the switch are at https://github.com/ejluttmann/SmartThings/tree/master/devicetypes/sport-notifications/sport-notification-switch.src
+
+1. Within the SmartThings IDE and click '*My SmartApps*' (or goto https://graph.api.smartthings.com/ide/apps), then '*+ New SmartApp*'. 
+2. Select the '*From Code*' tab and paste in the contents of the groovy file from the link below.
+3. Click '*Create*', and then '*Publish*' *(For Me)*.
 
 #### Update the code using the SmartThings IDE
 
