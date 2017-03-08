@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.0" }
+def version() { return "0.9.1" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -40,7 +40,7 @@ definition(
 preferences {
     page name: "pageMain"
     page name: "pageGoals"
-    page name: "pagePhone"
+    page name: "pageText"
     page name: "pageGame"
 }
 
@@ -70,13 +70,13 @@ def pageMain() {
             }
         }
         section {
-            input "enablePhone", "bool", title: "Enable Phone Notifications", defaultValue: "false", required: "false", submitOnChange: true
+            input "enablePhone", "bool", title: "Enable Text Notifications", defaultValue: "false", required: "false", submitOnChange: true
 
             if (enablePhone) {
                 href(name: "notify",
-                     title:"Phone Notifications", description:"Tap to setup game notifications",
+                     title:"Text Notifications", description:"Tap to setup game notifications",
                      required: false,
-                     page: "pagePhone")
+                     page: "pageText")
             }
         }
         section {
@@ -154,13 +154,14 @@ def pageGoals() {
     }
 }
 
-def pagePhone() {
-    dynamicPage(name: "pagePhone", title: "Phone Notifications") {
+def pageText() {
+    dynamicPage(name: "pageText", title: "Text Notifications") {
         section() {
             input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "sendPhoneMessage", "phone", title: "Send Phone Texts?", description: "phone number", displayDuringSetup: true, required: false
+//            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
     }
@@ -444,11 +445,21 @@ def startGameDay() {
         if (gameStartDate) {
             def hoursBefore = parent.parentHourBeforeGame() ?: 0
             def now = new Date()
-            def gameCheck = new Date(gameStartDate.getTime() - (hoursBefore * ((60 * 60) * 1000)))
+            def gameTime = new Date(gameStartDate.getTime())
+            def gameCheck = new Date(gameStartDate.getTime() - (((hoursBefore * (60 * 60))+30) * 1000))
 
+			// try not to have all notification services run at the exact same time
             def startTime = randomizeRunTime(gameCheck, 30)
 
+			// if startTime is later than game time, set to run at game time minus 5 seconds
+            if (gameTime < startTime) {
+            	log.debug "Reset start time to game time minus 5 seconds"
+                startTime = new Date(gameTime.getTime() - (5 * 1000))
+            }
+
+			// if startTime is prior to current time, set to run current time plus 5 seconds
             if (startTime <= now) {
+            	log.debug "Reset start time to current time plus 5 seconds"
                 startTime = new Date(now.getTime() + (5 * 1000))
             }
 
@@ -593,9 +604,8 @@ def checkGameStatusHandler(resp, data) {
                     case state.GAME_STATUS_FINAL7:
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is over!"
 
-                    // check for overtime score
-                    checkForGoal()
-
+                    def goalScore = false
+                    
 					if (settings.enableGame) {
                         // turn off any game action switches at end of game
                         if (settings.gameSwitches) {
@@ -605,6 +615,28 @@ def checkGameStatusHandler(resp, data) {
                                 log.debug "Switches are being left on after game!"
                             }
                         }
+                        
+                        if (settings.gameGoalIfWin) {
+                            if (getTeamScore(game.teams) > getOpponentScore(game.teams)) {
+                                goalScore = true
+                            }
+                        }
+                    } else {
+                        // check for overtime score
+                        def team = getTeamScore(game.teams)
+
+                        // check for change in scores
+                        def delay = settings.goalDelay ?: 0
+                        if (team > state.teamScore) {
+                            log.debug "Team scored in overtime!"
+                            state.teamScore = team
+	                        goalScore = true
+                        } 
+                    }
+                    
+                    if (goalScore) {
+                        def delay = settings.goalDelay ?: 0
+                        runIn(delay, teamGoalScored)
                     }
 
                     // game over, no more game day status checks required for the day
@@ -631,7 +663,7 @@ def checkGameStatusHandler(resp, data) {
                     }
 
                     //  set game status notified
-                    state.notifiedGameStatus = state.currentGameStatus    	    	
+                    state.notifiedGameStatus = state.gameStatus    	    	
                 }
 
                 // break out of loop
@@ -1351,7 +1383,7 @@ def triggerTeamGoalNotifications() {
             msg = "${settings.nhlTeam} just Scored!"
         }
 
-        triggerPhoneNotifications(msg)
+        sendTextNotification(msg)
     } else {
     	log.debug "Goal notifications are OFF"
     }
@@ -1371,7 +1403,7 @@ def triggerOpponentGoalNotifications() {
             msg = "Opponent Scored."
         }
 
-        triggerPhoneNotifications(msg)
+        sendTextNotification(msg)
     }
 }
 
@@ -1384,7 +1416,7 @@ def triggerStatusNotifications() {
         def msg2 = null
 
         if (game) {
-            switch (state.currentGameStatus) {
+            switch (state.gameStatus) {
                 case state.GAME_STATUS_SCHEDULED:
                 msg = "${game.teams.away.team.name} vs ${game.teams.home.team.name}"
                 if (state.gameTime) {
@@ -1430,9 +1462,9 @@ def triggerStatusNotifications() {
             }
 
             if (msg) {
-                if (triggerPhoneNotifications(msg)) {
+                if (sendTextNotification(msg)) {
                     if (msg2) {
-                        triggerPhoneNotifications(msg2)
+                        sendTextNotification(msg2)
                     }
                 }
             }
@@ -1445,7 +1477,7 @@ def triggerStatusNotifications() {
     }
 }
 
-def triggerPhoneNotifications(msg) {
+def sendTextNotification(msg) {
     try {
         if (msg == null) {
             log.debug( "No message to send" )
@@ -1459,7 +1491,12 @@ def triggerPhoneNotifications(msg) {
                 log.debug( "text msg: ${msg}" )
                 sendSms( sendPhoneMessage, msg )
             }
-
+/*            
+            if (settings.sendAskAlexa) {
+                log.debug( "Ask Alexa msg: ${msg}" )
+            	sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", isStateChange: true, descriptionText: "${msg}")
+            }
+*/
         }
     } catch(ex) {
         log.error "Error sending notifications: $ex"
