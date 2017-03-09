@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.1" }
+def version() { return "0.9.2" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -160,7 +160,7 @@ def pageText() {
             input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-//            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
@@ -793,7 +793,12 @@ def gameDateTime() {
 
 def gameTimeText() {
     def gameTime = gameDateTime()
-	return gameTime.format('h:mm:ss a',location.timeZone)
+    
+    if (gameTime) {
+		return gameTime.format('h:mm:ss a',location.timeZone)
+    }
+    
+    return "?:??:??"
 }
 
 def setSwitches(switches, turnon) {
@@ -1411,7 +1416,6 @@ def triggerStatusNotifications() {
     
     if (settings.sendGameDayMessage) {
         def game = state.Game
-        def gameTime = gameDateTime()
         def msg = null
         def msg2 = null
 
@@ -1419,20 +1423,19 @@ def triggerStatusNotifications() {
             switch (state.gameStatus) {
                 case state.GAME_STATUS_SCHEDULED:
                 msg = "${game.teams.away.team.name} vs ${game.teams.home.team.name}"
-                if (state.gameTime) {
-                    if (state.gameStations) {
-                        msg = msg + "\nToday, ${state.gameTime} on ${state.gameStations}"
-                    } else {
-                        msg = msg + "\nToday, ${state.gameTime}"
-                    }
-                    if (state.gameLocation) {
-                        msg = msg + "\n${state.gameLocation}"
-                    }
+                
+                if (state.gameStations) {
+                    msg = msg + "\nToday, ${gameTimeText()} on ${state.gameStations}"
+                } else {
+                    msg = msg + "\nToday, ${gameTimeText()}"
+                }
+                if (state.gameLocation) {
+                    msg = msg + "\n${state.gameLocation}"
                 }
                 break
 
                 case state.GAME_STATUS_PREGAME:
-                msg = "Pregame for ${game.teams.away.team.name} vs ${game.teams.home.team.name} is starting soon, game is at ${state.gameTime}!"
+                msg = "Pregame for ${game.teams.away.team.name} vs ${game.teams.home.team.name} is starting soon, game is at ${gameTimeText()}!"
                 break
 
                 case state.GAME_STATUS_IN_PROGRESS:
@@ -1491,12 +1494,12 @@ def sendTextNotification(msg) {
                 log.debug( "text msg: ${msg}" )
                 sendSms( sendPhoneMessage, msg )
             }
-/*            
+            
             if (settings.sendAskAlexa) {
                 log.debug( "Ask Alexa msg: ${msg}" )
             	sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", isStateChange: true, descriptionText: "${msg}")
             }
-*/
+
         }
     } catch(ex) {
         log.error "Error sending notifications: $ex"
