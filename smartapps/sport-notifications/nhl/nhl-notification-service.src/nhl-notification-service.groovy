@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.3" }
+def version() { return "0.9.4" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -129,7 +129,7 @@ def pageGoals() {
             }
         }
         
-        section("Light Color Settings"){
+        section("Lighting Level And Color Settings"){
             input "lightColor", "enum", title: "Lighting Color?", required: false, multiple:false, options: ["White", "Red","Green","Blue","Yellow","Orange","Purple","Pink"]
             input "lightLevel", "enum", title: "Lighting Level?", required: false, options: [[10:"10%"],[20:"20%"],[30:"30%"],[40:"40%"],[50:"50%"],[60:"60%"],[70:"70%"],[80:"80%"],[90:"90%"],[100:"100%"]]
         }
@@ -160,7 +160,11 @@ def pageText() {
             input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-//            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "textToSound", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
+            if (textToSound) {
+                input "textVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
+            }
+            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
@@ -243,6 +247,7 @@ def initialize() {
     log.debug "App = ${app}"
     
     state.Team = null
+    state.teamList = null
     
     state.teamScore = 0
     state.opponentScore = 0
@@ -360,25 +365,33 @@ def notificationSwitchHandler(evt) {
 }
 
 def getTeamEnums() {
-    def teams = []
-    def params = [
-        uri: "${state.NHL_API_URL}/teams",
-    ]
     try {
-        log.debug "httpGet: ${params}"
-        httpGet(params) { resp ->
-            def json = resp.data
-            for (rec in json.teams) {
-                teams += rec.teamName
-            } 
+	    def teams = []
+        def params = [
+            uri: "${state.NHL_API_URL}/teams",
+        ]
+        if (state.teamList == null) {
+            log.debug "httpGet: ${params}"
+            httpGet(params) { resp ->
+                def json = resp.data
+                for (rec in json.teams) {
+                    teams += rec.teamName
+                } 
 
-        }
+            }
+            
+    		state.teamList = teams
+       }
     } catch (e) {
         log.error("caught exception", e)
     }
 
-    log.debug "Teams: ${teams}"
-    return teams.sort()
+    if (state.teamList == null) {
+    	state.teamList = []
+    }
+    
+    log.debug "Teams: ${state.teamList}"
+    return state.teamList.sort()
 }
 
 def getTeam() {
@@ -1352,9 +1365,9 @@ def playHornHandler() {
         if (hornURI) {
             if (settings.soundDuration) {
                 if (settings.volume) {
-                    settings.sound.playTrackAndResume(hornURI, settings.soundDuration, settings.volume)
+                    settings.sound.playTrackAndRestore(hornURI, settings.soundDuration, settings.volume)
                 } else {
-                    settings.sound.playTrackAndResume(hornURI, settings.soundDuration)
+                    settings.sound.playTrackAndRestore(hornURI, settings.soundDuration)
                 }
             } else {
                 if (settings.volume) {
@@ -1495,12 +1508,17 @@ def sendTextNotification(msg) {
                 log.debug( "text msg: ${msg}" )
                 sendSms( sendPhoneMessage, msg )
             }
-/*            
+            
             if (settings.sendAskAlexa) {
                 log.debug( "Ask Alexa msg: ${msg}" )
             	sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", isStateChange: true, descriptionText: "${msg}")
             }
-*/
+
+			if (settings.textToSound) {
+                log.debug( "Text To Speaker msg: ${msg}" )
+                settings.textToSound.playTextAndRestore(msg, settings.textVolume)
+           }
+
         }
     } catch(ex) {
         log.error "Error sending notifications: $ex"
