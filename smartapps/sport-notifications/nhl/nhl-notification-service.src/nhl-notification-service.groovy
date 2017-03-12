@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.2" }
+def version() { return "0.9.3" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -160,7 +160,7 @@ def pageText() {
             input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
+//            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
@@ -378,7 +378,7 @@ def getTeamEnums() {
     }
 
     log.debug "Teams: ${teams}"
-    return teams
+    return teams.sort()
 }
 
 def getTeam() {
@@ -895,8 +895,9 @@ def setLightOptions(lights) {
 def restoreLightOptions(lights) {
     lights.each {
         if (settings.lightColor && it.hasCapability("Color Control")) {
-            log.debug "$it.id - restore light color"
-            it.setColor(state.lightsPrevious[it.id]) 
+           def oldColorValue = [hue: state.lightsPrevious[it.id].hue, saturation: state.lightsPrevious[it.id].saturation, level: state.lightsPrevious[it.id].level]
+           log.debug "$it.id - restore light color"
+            it.setColor(oldColorValue) 
         } 
 
         if (settings.lightLevel && it.hasCapability("Switch Level")) {
@@ -1494,12 +1495,12 @@ def sendTextNotification(msg) {
                 log.debug( "text msg: ${msg}" )
                 sendSms( sendPhoneMessage, msg )
             }
-            
+/*            
             if (settings.sendAskAlexa) {
                 log.debug( "Ask Alexa msg: ${msg}" )
             	sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", isStateChange: true, descriptionText: "${msg}")
             }
-
+*/
         }
     } catch(ex) {
         log.error "Error sending notifications: $ex"
