@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.4" }
+def version() { return "0.9.5" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -88,6 +88,10 @@ def pageMain() {
                      required: false,
                      page: "pageGame")
             }
+        }
+
+        section("Misc Options") {
+            input "useTeamLocation", "bool", title: "Use Time Zone of Selected Team?", defaultValue: "false", required: "false"
         }
 
         section("Service name") {
@@ -160,11 +164,20 @@ def pageText() {
             input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "textToSound", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
-            if (textToSound) {
-                input "textVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
-            }
             input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
+        }
+        section() {
+            input "sendTextToSpeaker", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
+            if (sendTextToSpeaker) {
+                input "sendTextVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
+            }
+            input "sendPregameMessage", "bool", title: "Send Custom Pregame Message?", required: false, displayDuringSetup: true, submitOnChange: true
+            if (sendPregameMessage) {
+                input "pregameMinutesBefore", "number", title: "Minutes Before Game", description: "1-120 minutes (default 10)", default: 10, required: false, range: "1..2400"
+                input "pregameMessage", "text", title: "Pregame Message", description: "Tap to Set Message", required: false
+            }
+        }
+        section() {
             input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
@@ -261,7 +274,7 @@ def initialize() {
     setupSwitch()
 
     getTeam()
-
+    
     if (state.enableGameNotifications) {
         startGameDay()
     } else {
@@ -423,7 +436,6 @@ def getTeam() {
         def now = new Date()
         def runTime = new Date(now.getTime() + (30 * 1000))
         runOnce(runTime, getTeam)
-
     }
 }
 
@@ -475,8 +487,21 @@ def startGameDay() {
             	log.debug "Reset start time to current time plus 5 seconds"
                 startTime = new Date(now.getTime() + (5 * 1000))
             }
+            
+            // check for pregame message
+            if (settings.sendPregameMessage) {
+                def minutesBefore = settings.pregameMinutesBefore ?: 10
+	            def pregameTime = new Date(gameStartDate.getTime() - ((minutesBefore * 60) * 1000))
+                
+                if (pregameTime <= now) {
+                    log.debug "Past pregame reminder, just ignore"
+                } else {
+                    log.debug "Schedule pregame message for ${app.label} at ${pregameTime.format('h:mm:ss a', getTimeZone())}"
+                    runOnce(pregameTime, sendPregameText)
+                }
+            }
 
-            log.debug "Schedule game status checks for ${app.label} at ${startTime.format('h:mm:ss a',location.timeZone)}"
+            log.debug "Schedule game status checks for ${app.label} at ${startTime.format('h:mm:ss a', getTimeZone())}"
             runOnce(startTime, checkGameStatus)
 
         } else {
@@ -519,7 +544,7 @@ def checkIfGameDay() {
 	def isGameDay = false
     try {
         if (state.enableGameNotifications == true) {
-            def todaysDate = new Date().format('yyyy-MM-dd',location.timeZone)
+            def todaysDate = new Date().format('yyyy-MM-dd', getTimeZone())
             def params = [uri: "${state.NHL_API_URL}/schedule?teamId=${state.Team.id}&date=${todaysDate}&expand=schedule.teams,schedule.broadcasts.all"] 
 
             log.debug "Determine if it is game day for team ${settings.nhlTeam}, requesting game day schedule for ${todaysDate}"
@@ -532,6 +557,16 @@ def checkIfGameDay() {
     }
 
     return isGameDay
+}
+
+def sendPregameText() {
+    try {
+        if (settings.sendPregameMessage) {
+            sendTextNotification(settings.pregameMessage)
+        }
+    } catch (e) {
+        log.error("caught exception", e)
+    }
 }
 
 def checkGameStatusHandler(resp, data) {
@@ -715,7 +750,7 @@ def checkGameStatus() {
             return
         }
 
-        def todaysDate = new Date().format('yyyy-MM-dd',location.timeZone)
+        def todaysDate = new Date().format('yyyy-MM-dd', getTimeZone())
         if (settings.debugCheckDate) {
             todaysDate = settings.debugCheckDate
         }
@@ -780,6 +815,21 @@ def getBroadcastStations(game) {
     return stations
 }
 
+def getTimeZone() {
+    try {
+        if (useTeamLocation) {
+            if (state.Team) {
+                def tz = state.Team.venue.timeZone.id
+                return TimeZone.getTimeZone(tz)                        
+            }
+        }
+    } catch(ex) {
+        log.error("caught exception", e)
+    }
+
+	return location.timeZone
+}
+
 def getLocation(game) {
     def location = null
 
@@ -808,7 +858,7 @@ def gameTimeText() {
     def gameTime = gameDateTime()
     
     if (gameTime) {
-		return gameTime.format('h:mm:ss a',location.timeZone)
+		return gameTime.format('h:mm:ss a', getTimeZone())
     }
     
     return "?:??:??"
@@ -1514,9 +1564,9 @@ def sendTextNotification(msg) {
             	sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", isStateChange: true, descriptionText: "${msg}")
             }
 
-			if (settings.textToSound) {
+			if (settings.sendTextToSpeaker) {
                 log.debug( "Text To Speaker msg: ${msg}" )
-                settings.textToSound.playTextAndRestore(msg, settings.textVolume)
+                settings.sendTextToSpeaker.playTextAndRestore(msg, settings.sendTextVolume)
            }
 
         }
