@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.5" }
+def version() { return "0.9.6" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -70,9 +70,9 @@ def pageMain() {
             }
         }
         section {
-            input "enablePhone", "bool", title: "Enable Text Notifications", defaultValue: "false", required: "false", submitOnChange: true
+            input "enableTextNotifications", "bool", title: "Enable Text Notifications", defaultValue: "false", required: "false", submitOnChange: true
 
-            if (enablePhone) {
+            if (enableTextNotifications) {
                 href(name: "notify",
                      title:"Text Notifications", description:"Tap to setup game notifications",
                      required: false,
@@ -153,6 +153,7 @@ def pageGoals() {
                 input "volume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
                 input "soundDuration", "number", title: "Duration To Play (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
                 input "soundDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
+	            input "soundBooOpponent", "bool", title: "Boo When The Opponent Scores?", defaultValue: "true", displayDuringSetup: true, required:false
             }
         }
     }
@@ -160,25 +161,23 @@ def pageGoals() {
 
 def pageText() {
     dynamicPage(name: "pageText", title: "Text Notifications") {
-        section() {
+        section("Notification Types") {
             input "sendGoalMessage", "bool", title: "Enable Goal Score Notifications?", defaultValue: "true", displayDuringSetup: true, required:false
             input "sendGameDayMessage", "bool", title: "Enable Game Day Status Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
-        }
-        section() {
-            input "sendTextToSpeaker", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
-            if (sendTextToSpeaker) {
-                input "sendTextVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
-            }
             input "sendPregameMessage", "bool", title: "Send Custom Pregame Message?", required: false, displayDuringSetup: true, submitOnChange: true
             if (sendPregameMessage) {
                 input "pregameMinutesBefore", "number", title: "Minutes Before Game", description: "1-120 minutes (default 10)", default: 10, required: false, range: "1..2400"
                 input "pregameMessage", "text", title: "Pregame Message", description: "Tap to Set Message", required: false
             }
         }
-        section() {
+        section("Notification Options") {
+            input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
+            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
+            input "sendTextToSpeaker", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
+            if (sendTextToSpeaker) {
+                input "sendTextVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
+            }
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
     }
@@ -212,6 +211,7 @@ def intitInitalStates() {
     state.NHL_API = "/api/v1"
     state.NHL_API_URL = "${state.NHL_URL}${state.NHL_API}"
     state.HORN_URL = "http://wejustscored.com/audio/"
+	state.BOO_URL = "http://soundbible.com/mp3/Crowd Boo 5-SoundBible.com-339165240.mp3"
 
     state.GAME_STATUS_SCHEDULED            = '1'
     state.GAME_STATUS_PREGAME              = '2'
@@ -229,8 +229,9 @@ def intitInitalStates() {
 }
 
 def installed() {
-	// create during install only, default to Enabled
-    state.enableGameNotifications = true
+	// create during install only 
+    state.enableGameNotifications = true //default to Enabled
+    state.prevTeamList = null
 
     intitInitalStates()
     initialize()
@@ -394,16 +395,25 @@ def getTeamEnums() {
             }
             
     		state.teamList = teams
+            state.prevTeamList = teams
+		    log.debug "New Team List: ${state.teamList}"
+       } else {
+		    log.debug "Use existing team list"
        }
     } catch (e) {
         log.error("caught exception", e)
     }
 
     if (state.teamList == null) {
-    	state.teamList = []
+    	if (state.prevTeamList == null) {
+            log.debug "Initialize team list"
+            state.teamList = []
+        } else {
+            log.debug "Reset to previous Team list"
+    		state.teamList = state.prevTeamList
+        }
     }
     
-    log.debug "Teams: ${state.teamList}"
     return state.teamList.sort()
 }
 
@@ -653,6 +663,15 @@ def checkGameStatusHandler(resp, data) {
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is over!"
 
                     def goalScore = false
+                    def teamGoals = getTeamScore(game.teams)
+                    def opponentGoals = getOpponentScore(game.teams)
+                    
+                    // check for overtime score
+                    if (teamGoals > state.teamScore) {
+                        log.debug "Team scored in overtime!"
+                        state.teamScore = teamGoals
+                        goalScore = true
+                    } 
                     
 					if (settings.enableGame) {
                         // turn off any game action switches at end of game
@@ -665,31 +684,20 @@ def checkGameStatusHandler(resp, data) {
                         }
                         
                         if (settings.gameGoalIfWin) {
-                            if (getTeamScore(game.teams) > getOpponentScore(game.teams)) {
+                            if (teamGoals > opponentGoals) {
                                 goalScore = true
                             }
                         }
-                    } else {
-                        // check for overtime score
-                        def team = getTeamScore(game.teams)
+                    } 
 
-                        // check for change in scores
-                        def delay = settings.goalDelay ?: 0
-                        if (team > state.teamScore) {
-                            log.debug "Team scored in overtime!"
-                            state.teamScore = team
-	                        goalScore = true
-                        } 
-                    }
+                    // game over, no more game day status checks required for the day
+                    gamveOver = true
+                    state.gameStarted = false
                     
                     if (goalScore) {
                         def delay = settings.goalDelay ?: 0
                         runIn(delay, teamGoalScored)
                     }
-
-                    // game over, no more game day status checks required for the day
-                    gamveOver = true
-                    state.gameStarted = false
 
                     //done
                     break
@@ -706,7 +714,7 @@ def checkGameStatusHandler(resp, data) {
                 }
 
                 if (state.gameStatus != state.GAME_STATUS_UNKNOWN && state.notifiedGameStatus != state.gameStatus) {
-                    if (settings.enablePhone) {
+                    if (settings.enableTextNotifications) {
 	                    triggerStatusNotifications()
                     }
 
@@ -1129,6 +1137,12 @@ def getHornURL(team) {
     return hornURL
 }
 
+def getBooURL() {
+    def booURL = state.BOO_URL
+
+    return booURL
+}
+
 def getTeamScore(teams) {
     return getScore(teams, false)
 }
@@ -1198,10 +1212,14 @@ def getName(teams, opponent) {
 
 def teamGoalScored() {
     log.debug "GGGOOOAAALLL!!!"
-    
-    if (settings.enablePhone) {
-    	triggerTeamGoalNotifications()
-    }
+
+	// Only send goal text notifications if game in progress, if game
+    // is over there will be a final score sent already
+	if (state.gameStarted) { 
+        if (settings.enableTextNotifications) {
+            triggerTeamGoalNotifications()
+        }
+	}
     
     if (settings.enableGoals) {
         triggerButtons()
@@ -1215,8 +1233,18 @@ def teamGoalScored() {
 def opponentGoalScored() {
      log.debug "BOOOOOOO!!!"
     
-    if (settings.enablePhone) {
-    	triggerOpponentGoalNotifications()
+    // Only send goal text notifications if game in progress, if game
+    // is over there will be a final score sent already
+    if (state.gameStarted) { 
+        if (settings.enableTextNotifications) {
+            triggerOpponentGoalNotifications()
+        }
+    }
+
+    if (settings.enableGoals) {
+    	if (settings.soundBooOpponent) {
+	        triggerBoo()
+        }
     }
 }
 
@@ -1400,37 +1428,56 @@ def triggerHorn() {
     try {
         def delay = settings.soundDelay ?: 0
         if (settings.sound) {
-            runIn(delay, playHornHandler)
+           	runIn(delay, playHornHandler)
         }
     } catch(ex) {
         log.error "Error running horn: $ex"
     }
 }
 
-def playHornHandler() {
+def triggerBoo() {
     try {
-        def hornURI = getHornURL(state.Team)
+        def delay = settings.soundDelay ?: 0
+        if (settings.sound) {
+           	runIn(delay, playBooHandler)
+        }
+    } catch(ex) {
+        log.error "Error running boo: $ex"
+    }
+}
 
-        log.debug "play horn"
-        if (hornURI) {
+def playHornHandler() {
+    def hornURI = getHornURL(state.Team)
+    playSoundURI(hornURI)
+}
+
+def playBooHandler() {
+    def booURI = getBooURL()
+    playSoundURI(booURI)
+}
+
+def playSoundURI(uri) {
+    try {
+        log.debug "play URI = ${uri}"
+        if (uri) {
             if (settings.soundDuration) {
                 if (settings.volume) {
-                    settings.sound.playTrackAndRestore(hornURI, settings.soundDuration, settings.volume)
+                    settings.sound.playTrackAndRestore(uri, settings.soundDuration, settings.volume)
                 } else {
-                    settings.sound.playTrackAndRestore(hornURI, settings.soundDuration)
+                    settings.sound.playTrackAndRestore(uri, settings.soundDuration)
                 }
             } else {
                 if (settings.volume) {
-                    settings.sound.playTrackAtVolume(hornURI, settings.volume)
+                    settings.sound.playTrackAtVolume(uri, settings.volume)
                 } else {
-                    settings.sound.playTrack(hornURI)
+                    settings.sound.playTrack(uri)
                 }
             }
         } else {
-            log.debug "Error, could not get horn URI"
+            log.debug "Error, could not get URI"
         }
     } catch(ex) {
-        log.error "Error playing horn: $ex"
+        log.error "Error playing uri: $ex"
     }
 }
 
@@ -1605,6 +1652,11 @@ def childStartGame() {
 }
 
 def childTouchTrigger() {
-    log.debug "${app.label} triggered goal!"
-	teamGoalScored()    
+    def currentGameStart = state.gameStarted
+
+	log.debug "${app.label} triggered goal!"
+	state.gameStarted = true
+    teamGoalScored()    
+  	state.gameStarted = currentGameStart
+
 }
