@@ -2,8 +2,22 @@ SmartThings
 ============
 My collection of smartthings apps
 
-<h2>Apps:</h2>
-<b>NHL Game Notifications:</b> SmartThings App to control lights, buttons, switches, sirens, and/or play your teams goal scoring horn when your NHL team scores a goal.  Additionlay you can get text and/or push notifications of game status updates..<br>
+<h1>Sport Notification Switch</h1>
+Sport Notification Switch is a virtual switch used by the Sports Notification apps
+
+#### Install the code using the SmartThings IDE
+
+1. Within the SmartThings IDE and click '*My Device Handlers*' (or goto https://graph.api.smartthings.com/ide/devices), then '*+New Device Handler*'. 
+2. Select the '*From Code*' tab and paste in the contents of the groovy file from the link below.
+3. Click '*Create*', and then '*Publish*' *(For Me)*.
+
+#### Update the code using the SmartThings IDE
+
+1. Within the SmartThings IDE, click '*My Device Handlers*', then '*sport-notifications : Sport Notification Switch*'. 
+2. Delete to old code and paste in the contents of the updated groovy file from the link below.
+3. Click '*Save*', and then '*Publish*' *(For Me)*.
+
+https://raw.githubusercontent.com/ejluttmann/SmartThings/master/devicetypes/sport-notifications/sport-notification-switch.src/sport-notification-switch.groovy
 
 
 *If you like any of these apps, please consider supporting its development by making a
