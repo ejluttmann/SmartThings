@@ -23,7 +23,7 @@ https://raw.githubusercontent.com/ejluttmann/SmartThings/master/smartapps/sport-
 <h1>NHL Notification Service</h1>
 Handles the sport services for NHL notifications.
 
-NOTE:  First you should install the *Sport Notification Switch*, a devicetype handler for a virtual switch used by the child service apps.  Installation instructions for the switch are at https://github.com/ejluttmann/SmartThings/tree/master/devicetypes/sport-notifications/sport-notification-switch.src
+NOTE:  First you should install the *Sport Notification Switch*, a devicetype handler for a virtual switch used by the child service apps.  See below for the installation instructions for the switch
 
 #### Install the code using the SmartThings IDE
 
