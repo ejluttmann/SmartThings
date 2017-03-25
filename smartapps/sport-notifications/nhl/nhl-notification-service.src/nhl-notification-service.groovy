@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.6" }
+def version() { return "0.9.7" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -173,11 +173,6 @@ def pageText() {
         section("Notification Options") {
             input "sendPushMessage", "bool", title: "Send Push Notifications?", defaultValue: "false", displayDuringSetup: true, required:false
             input "sendPhoneMessage", "phone", title: "Send Texts to Phone?", description: "phone number", displayDuringSetup: true, required: false
-            input "sendAskAlexa", "bool", title: "Send to Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false
-            input "sendTextToSpeaker", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
-            if (sendTextToSpeaker) {
-                input "sendTextVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
-            }
             input "sendDelay", "number", title: "Delay After Goal (in seconds)", description: "1-120 seconds", required: false, range: "1..120"
         }
     }
@@ -626,6 +621,8 @@ def checkGameStatusHandler(resp, data) {
                     case state.GAME_STATUS_IN_PROGRESS_CRITICAL:
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is on!!!"
 
+                    // check every 5 seconds when game is active, looking for score changes asap
+                    runDelay = 5
 
                     // first time just initialize the scores - this is preventing the issue of sending 
                     // goal notifications when app is started in the middle of the game after scores have 
@@ -633,24 +630,21 @@ def checkGameStatusHandler(resp, data) {
                     if (!state.gameStarted) {
                         def team = getTeamScore(game.teams)
                         def opponent = getOpponentScore(game.teams)
-                        
+
                         log.debug "Game started, initialize scores and start switches..."
                         state.teamScore = team
                         state.opponentScore = opponent
-                        
+
                         if (settings.enableGame) {
                             // turn on any game action switches at start of game
                             if (settings.gameSwitches) {
                                 setSwitches(settings.gameSwitches, true)
                             }
                         }
+
+                        // indicate game has started
+                        state.gameStarted = true
                     }
-
-                    // indicate game has started
-                    state.gameStarted = true
-
-                    // check every 5 seconds when game is active, looking for score changes asap
-                    runDelay = 5
 
                     // check for new goal
                     checkForGoal()
@@ -662,16 +656,22 @@ def checkGameStatusHandler(resp, data) {
                     case state.GAME_STATUS_FINAL7:
                     log.debug "${game.teams.away.team.name} vs ${game.teams.home.team.name} - game is over!"
 
-                    def goalScore = false
-                    def teamGoals = getTeamScore(game.teams)
-                    def opponentGoals = getOpponentScore(game.teams)
-                    
                     // check for overtime score
-                    if (teamGoals > state.teamScore) {
-                        log.debug "Team scored in overtime!"
-                        state.teamScore = teamGoals
-                        goalScore = true
-                    } 
+                    def overtimeScore = checkForGoal()
+    
+                    // execute goal routine if team wins
+                    if (settings.gameGoalIfWin) {
+                        // execute goal at end of game, if there was no overtime goal already
+                        if (overtimeScore == false) {
+                            def teamGoals = getTeamScore(game.teams)
+                            def opponentGoals = getOpponentScore(game.teams)
+
+                            if (teamGoals > opponentGoals) {
+                                def delay = settings.goalDelay ?: 0
+                                runIn(delay, teamGoalScored)
+                            }
+                        }
+                    }
                     
 					if (settings.enableGame) {
                         // turn off any game action switches at end of game
@@ -682,22 +682,10 @@ def checkGameStatusHandler(resp, data) {
                                 log.debug "Switches are being left on after game!"
                             }
                         }
-                        
-                        if (settings.gameGoalIfWin) {
-                            if (teamGoals > opponentGoals) {
-                                goalScore = true
-                            }
-                        }
                     } 
 
                     // game over, no more game day status checks required for the day
                     gamveOver = true
-                    state.gameStarted = false
-                    
-                    if (goalScore) {
-                        def delay = settings.goalDelay ?: 0
-                        runIn(delay, teamGoalScored)
-                    }
 
                     //done
                     break
@@ -715,7 +703,9 @@ def checkGameStatusHandler(resp, data) {
 
                 if (state.gameStatus != state.GAME_STATUS_UNKNOWN && state.notifiedGameStatus != state.gameStatus) {
                     if (settings.enableTextNotifications) {
-	                    triggerStatusNotifications()
+                    	// use goal delay if set, ensure messages arrive after goal messages
+                        def delay = settings.goalDelay ?: 0 
+                        runIn(delay, triggerStatusNotifications)
                     }
 
                     //  set game status notified
@@ -730,6 +720,7 @@ def checkGameStatusHandler(resp, data) {
         if (gamveOver) {
             log.debug "Game is over, no more game status checks required for today."
             rescheduleNextCheck = false
+            state.gameStarted = false
         }
         
         if (!gameFound) {
@@ -772,8 +763,9 @@ def checkGameStatus() {
 }
 
 def checkForGoal() {
-
+	def goalScored = false
     def game = state.Game
+    
     if (game) {
         def team = getTeamScore(game.teams)
         def opponent = getOpponentScore(game.teams)
@@ -782,17 +774,22 @@ def checkForGoal() {
         def delay = settings.goalDelay ?: 0
         if (team > state.teamScore) {
             log.debug "Change in team score"
+            goalScored = true
             state.teamScore = team
            	runIn(delay, teamGoalScored)
-        } 
+        }
+        
         if (opponent > state.opponentScore) {
             log.debug "Change in opponent score"
+            goalScored = true
             state.opponentScore = opponent
             runIn(delay, opponentGoalScored)
         } 
     } else {
         log.debug "No game setup yet!"
     }
+    
+    return goalScored
 }
 
 
@@ -1593,30 +1590,7 @@ def triggerStatusNotifications() {
 
 def sendTextNotification(msg) {
     try {
-        if (msg == null) {
-            log.debug( "No message to send" )
-        } else {
-            if ( sendPushMessage == true ) {
-                log.debug( "push msg: ${msg}" )
-                sendPush( msg )
-            }
-
-            if ( sendPhoneMessage ) {
-                log.debug( "text msg: ${msg}" )
-                sendSms( sendPhoneMessage, msg )
-            }
-            
-            if (settings.sendAskAlexa) {
-                log.debug( "Ask Alexa msg: ${msg}" )
-            	sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", isStateChange: true, descriptionText: "${msg}")
-            }
-
-			if (settings.sendTextToSpeaker) {
-                log.debug( "Text To Speaker msg: ${msg}" )
-                settings.sendTextToSpeaker.playTextAndRestore(msg, settings.sendTextVolume)
-           }
-
-        }
+    	parent.parentSendNotification(app.label, sendPushMessage, sendPhoneMessage, msg)
     } catch(ex) {
         log.error "Error sending notifications: $ex"
         return false

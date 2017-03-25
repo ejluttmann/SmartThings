@@ -20,7 +20,7 @@
 */
 
 def handle() { return "Sport Notifications" }
-def version() { return "0.9.0" }
+def version() { return "0.9.1" }
 def copyright() { return "Copyright © 2017" }
 
 definition(
@@ -63,6 +63,15 @@ def pageMain() {
             	defaultValue: "true", required: false, displayDuringSetup: true
             input "touchNotify", "enum", title: "Touch Notification", description: "Tap to select service to use for touch notification", 
                 required: false, multiple: false, displayDuringSetup: true, options: appsList
+            input "sendAskAlexa", "bool", title: "Send Notifications To Ask Alexa?", defaultValue: "false", displayDuringSetup: true, required:false, submitOnChange: true
+            if (sendAskAlexa && state.askAlexaMQ) {
+                input "listOfMQs", "enum", title: "This is a list of the Ask Alexa Message Queues", options: state.askAlexaMQ, multiple: true, required: false
+            }
+            input "sendTextToSpeaker", "capability.musicPlayer", title: "Send Notifications To Speaker?", required: false, displayDuringSetup: true, submitOnChange: true
+            if (sendTextToSpeaker) {
+                input "sendTextVolume", "number", title: "Speaker Volume", description: "1-100%", required: false, range: "1..100"
+            }
+                
             href "pageSchedule", title: "Service Scheduling", description: "Tap to change services scheduling"
             href "pageAbout", title: "About ${handle()}", description: "Tap to get application version, license, or to remove the application"
         }
@@ -109,11 +118,18 @@ def textAboutVersion() {
     def childVersions = ""
 
     if (childCount) {
-        childApps.each {child ->
+    	def apps = childApps.sort{ it.label }
+        apps.each {child ->
+        	def gameString = "No game"
+            if (child.childIsGameDay()) {
+                def gameDayTime = child.childGameDate()
+                gameString = "at " + gameDayTime.format('h:mm:ss a',location.timeZone)
+            }
             childVersions = childVersions + "\n" +
                 "Service: ${child.label}\n" +
                 "   ${child.name}\n" +
-                "   version: ${child.childVersion()}\n"
+                "   Version: ${child.childVersion()}\n" +
+                "   Gameday: ${gameString}\n"
         }
     } else {
         childVersions = "No notification services installed"  
@@ -138,6 +154,8 @@ def textAboutLicense() {
 }
 
 def installed() {
+	state.askAlexaMQ = null
+    
     initialize()
 }
 
@@ -169,6 +187,10 @@ def initialize() {
     if (doTouch == true) {
         subscribe(app, appTouchNotify)
     }
+    
+    if (settings.sendAskAlexa) {
+    	subscribe(location, "askAlexaMQ", askAlexaMQHandler)
+    }
 
     // schedule to run every day at specified time
     def start = getStartTime(settings.serviceStartTime)
@@ -189,6 +211,15 @@ def appTouchNotify(evt) {
             it.childTouchTrigger()
             return
         }
+    }
+}
+
+def askAlexaMQHandler(evt) {
+    if (!evt) return
+    switch (evt.value) {
+        case "refresh":
+        state.askAlexaMQ = evt.jsonData && evt.jsonData?.queues ?   evt.jsonData.queues : []
+        break
     }
 }
 
@@ -217,4 +248,38 @@ def parentCreateSwitches() {
 
 def parentHourBeforeGame() {
 	return settings.serviceHoursBeforeStart
+}
+
+def parentSendNotification(label, push, phone, msg) {
+    try {
+        if (msg == null) {
+            log.debug( "${label}: No message to send" )
+        } else {
+            if ( push == true ) {
+                log.debug( "${label}: push msg = ${msg}" )
+                sendPush( msg )
+            }
+
+            if ( phone ) {
+                log.debug( "${label}: phone msg = ${msg}" )
+                sendSms( phone, msg )
+            }
+            
+            if (settings.sendAskAlexa) {
+                log.debug( "${label}: Ask Alexa msg = ${msg}" )
+                sendLocationEvent(name: "AskAlexaMsgQueue", value: "Sport Notifications", unit: "${label}", isStateChange: true, descriptionText: "${msg}", data: [queues:settings.listOfMQs])
+            }
+
+			if (settings.sendTextToSpeaker) {
+                log.debug( "${label}: Text To Speaker msg = ${msg}" )
+                settings.sendTextToSpeaker.playTextAndRestore(msg, settings.sendTextVolume)
+           }
+
+        }
+    } catch(ex) {
+        log.error "Error sending notifications: $ex"
+        return false
+    }
+
+    return true
 }
