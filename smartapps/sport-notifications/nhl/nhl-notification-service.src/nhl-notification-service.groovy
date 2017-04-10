@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.7" }
+def version() { return "0.9.8" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
@@ -903,6 +903,8 @@ def setLightPrevious(lights) {
                 "switch": it.currentValue("switch"),
             ]
         }
+        
+        log.debug "$it.id - old light values = $state.lightsPrevious"
     }
 }
 
@@ -964,11 +966,9 @@ def restoreLightOptions(lights) {
     lights.each {
         if (settings.lightColor && it.hasCapability("Color Control")) {
            def oldColorValue = [hue: state.lightsPrevious[it.id].hue, saturation: state.lightsPrevious[it.id].saturation, level: state.lightsPrevious[it.id].level]
-           log.debug "$it.id - restore light color"
+           log.debug "$it.id - restore light color = $oldColorValue"
             it.setColor(oldColorValue) 
-        } 
-
-        if (settings.lightLevel && it.hasCapability("Switch Level")) {
+        } else if (settings.lightLevel && it.hasCapability("Switch Level")) {
             def level = state.lightsPrevious[it.id].level ?: 100
             log.debug "$it.id - restore light level = $level"
             it.setLevel(level) 
