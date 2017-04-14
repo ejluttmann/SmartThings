@@ -21,7 +21,7 @@
 include 'asynchttp_v1'
 
 def handle() { return "NHL Notification Service" }
-def version() { return "0.9.8" }
+def version() { return "0.9.9" }
 def copyright() { return "Copyright © 2017" }
 def getDeviceID() { return "VSM_${app.id}" }
 
