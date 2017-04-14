@@ -350,16 +350,19 @@ def setGameNotifications(enable) {
         state.enableGameNotifications = enable
 
         if (enable) {
-        	startGameDay()()
+        	startGameDay()
         } else {
 	        unschedule()
         }
+        
     } else {
 	    log.debug "${app.label}: enable state remained unchanged"
     }
 }
 
 def notificationSwitchHandler(evt) {
+    log.debug "notificationSwitchHandler: evt=${evt.value}"
+    
     try {
         if (evt.value == "on") {
             log.debug "Enabling Sport Notification"
