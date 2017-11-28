@@ -39,4 +39,4 @@ https://raw.githubusercontent.com/ejluttmann/SmartThings/master/smartapps/sport-
 *If you like this app, please consider supporting its development by making a
 donation via PayPal.*
 
-[![paypal](https://www.paypalobjects.c
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=VLKDKNJLQ55XU)
